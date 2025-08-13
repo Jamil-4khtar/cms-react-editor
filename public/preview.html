@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Preview</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin:0; height:100%; }
+      body { font-family: system-ui, sans-serif; padding: 24px; }
+      .clickable:hover { outline: 2px solid #3b82f6; cursor: pointer; }
+      img { display:block; max-width:100%; height:auto; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+
+    
+    <script>
+      const MSG = {
+        READY: "ready",
+        HYDRATE: "hydrate",
+        CLICKED: "clicked",
+        GET_RECT: "getRect",
+        RECT: "rect",
+        LAYOUT_CHANGED: "layoutChanged",
+        INLINE_EDIT_COMMIT: "inlineEditCommit",
+        SET_BREAKPOINT: "setBreakpoint",
+      };
+
+      let state = { doc: null };
+
+      function applyInlineStyles(el, inline) {
+        if (!inline) return;
+        for (const k in inline) { try { el.style[k] = inline[k]; } catch(e) {} }
+      }
+
+      function renderBlock(block, parentEl) {
+        let el;
+        if (block.type === "text") {
+          el = document.createElement("div");
+          el.textContent = block.props?.text || "";
+          el.addEventListener("dblclick", () => startInlineEdit(block.id, el));
+        } else if (block.type === "image") {
+          el = document.createElement("img");
+          el.src = block.props?.src || "";
+          el.alt = block.props?.alt || "";
+        } else { // container or unknown => div wrapper
+          el = document.createElement("div");
+        }
+        el.dataset.editorId = block.id;
+        el.classList.add("clickable");
+        applyInlineStyles(el, block.styles?.inline);
+
+        (block.children || []).forEach(ch => renderBlock(ch, el));
+        parentEl.appendChild(el);
+      }
+
+      function render() {
+        const rootEl = document.getElementById("root");
+        rootEl.innerHTML = "";
+        if (!state.doc) return;
+        renderBlock(state.doc.root, rootEl);
+        notifyLayout();
+      }
+
+      function startInlineEdit(id, el) {
+        el.setAttribute("contenteditable", "true");
+        el.focus();
+        const onBlur = () => {
+          window.parent.postMessage({ type: MSG.INLINE_EDIT_COMMIT, id, text: el.textContent }, "*");
+          cleanup();
+        };
+        const onKey = (e) => { if (e.key === "Enter") { e.preventDefault(); el.blur(); } };
+        function cleanup() {
+          el.removeAttribute("contenteditable");
+          el.removeEventListener("blur", onBlur);
+          el.removeEventListener("keydown", onKey);
+        }
+        el.addEventListener("blur", onBlur);
+        el.addEventListener("keydown", onKey);
+      }
+
+      function getRectForId(id) {
+        const el = document.querySelector(`[data-editor-id="${CSS.escape(id)}"]`);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top, width: r.width, height: r.height };
+      }
+
+      // message handling
+      window.addEventListener("message", (e) => {
+        const msg = e.data;
+        if (!msg || typeof msg !== "object") return;
+
+        if (msg.type === MSG.HYDRATE) { state.doc = msg.doc; render(); }
+        if (msg.type === MSG.GET_RECT) {
+          const rect = getRectForId(msg.id);
+          window.parent.postMessage({ type: MSG.RECT, id: msg.id, rect }, "*");
+        }
+      });
+
+      // click → selected
+      document.addEventListener("click", (e) => {
+        const el = e.target.closest("[data-editor-id]");
+        if (!el) return;
+        window.parent.postMessage({ type: MSG.CLICKED, id: el.dataset.editorId }, "*");
+      }, true);
+
+      // notify on layout changes
+      const ro = new ResizeObserver(() => notifyLayout());
+      ro.observe(document.body);
+      function notifyLayout() {
+        window.parent.postMessage({ type: MSG.LAYOUT_CHANGED }, "*");
+      }
+
+      // tell parent we're ready
+      window.parent.postMessage({ type: MSG.READY }, "*");
+    </script>
+  </body>
+</html>
