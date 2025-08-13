@@ -6,5 +6,6 @@ export const MSG = {
   RECT: "rect",
   LAYOUT_CHANGED: "layoutChanged",
   INLINE_EDIT_COMMIT: "inlineEditCommit",
-  SET_BREAKPOINT: "setBreakpoint",
+  LIST_BLOCKS: "listBlocks",   // NEW
+  BLOCKS: "blocks",            // NEW
 };

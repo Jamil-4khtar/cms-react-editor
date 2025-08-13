@@ -11,9 +11,9 @@ export default function StyleInspector() {
   }, [state.doc, state.selectedId]);
 
   const setStyle = (key, value) => {
-    if (!selectedBlock) return;
-    patchStyles(selectedBlock.id, { [key]: value || undefined });
-  };
+  if (!selectedBlock) return;
+  patchStyles(selectedBlock.id, { [key]: value === "" ? undefined : value });
+};
 
   return (
     <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, padding:12 }}>
